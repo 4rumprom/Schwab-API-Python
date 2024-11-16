@@ -4,20 +4,51 @@ Coded by Tyler Bowers
 Github: https://github.com/tylerebowers/Schwab-API-Python
 """
 import os
-import ssl
 import json
 import time
+import pyotp
+import random
 import base64
+import asyncio
 import logging
 import requests
 import datetime
 import threading
-import webbrowser
-import http.server
+from playwright.async_api import async_playwright, TimeoutError
+from playwright_stealth import stealth_async
+from playwright_stealth.stealth import StealthConfig
 
+# Define the user agent template for Chrome with placeholders
+USER_AGENT_TEMPLATE = "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.{build}.{patch} Safari/537.36"
+
+# Randomize Chrome version and build numbers
+chrome_major_version = random.randint(120, 130)  # Major version (e.g., 85 to 115)
+chrome_build = random.randint(4100, 5300)  # Build number range
+chrome_patch = random.randint(0, 200)  # Patch number range
+
+# Select a random recent OS version
+os_versions = [
+    "Windows NT 10.0; Win64; x64",
+    "Windows NT 10.0; WOW64",
+    "Windows NT 10.0",
+    "Windows NT 6.1; Win64; x64",
+    "Macintosh; Intel Mac OS X 10_15_7",
+    "X11; Linux x86_64",
+]
+
+# Generate the user agent string
+USER_AGENT = USER_AGENT_TEMPLATE.format(
+    os=random.choice(os_versions),
+    version=chrome_major_version,
+    build=chrome_build,
+    patch=chrome_patch
+)
+
+# Randomize the viewport
+VIEWPORT = {'width': (width := random.randint(1200, 1600)), 'height': round(width * random.uniform(2/3, 3/4))}
 
 class Tokens:
-    def __init__(self, client, app_key, app_secret, callback_url, tokens_file="tokens.json", update_tokens_auto=True):
+    def __init__(self, client, app_key, app_secret, username, password, totp_secret, callback_url, headless=True, tokens_file="tokens.json", update_tokens_auto=True):
         """
         Initialize a tokens manager
         :param client: client object
@@ -37,6 +68,12 @@ class Tokens:
             raise Exception("[Schwabdev] app_key cannot be None.")
         if app_secret is None:
             raise Exception("[Schwabdev] app_secret cannot be None.")
+        if username is None:
+            raise Exception("[Schwabdev] username cannot be None.")
+        if password is None:
+            raise Exception("[Schwabdev] password cannot be None.")
+        if totp_secret is None:
+            raise Exception("[Schwabdev] totp_secret cannot be None.")
         if callback_url is None:
             raise Exception("[Schwabdev] callback_url cannot be None.")
         if tokens_file is None:
@@ -54,6 +91,15 @@ class Tokens:
         self._app_key = app_key                             # app key credential
         self._app_secret = app_secret                       # app secret credential
         self._callback_url = callback_url                   # callback url to use
+
+        self.username = username                            # Schwab account username
+        self.password = password                            # Schwab account password
+        self.totp_secret = totp_secret                      # Schwab account totp_secret
+
+        # Get user agent based on browser version (initialized here)
+        self.USER_AGENT = USER_AGENT  # Define it as an instance variable
+        self.headless = headless
+        self.redirect_url = None
 
         self.access_token = None                            # access token from auth
         self.refresh_token = None                           # refresh token from auth
@@ -247,6 +293,136 @@ class Tokens:
 
 
 
+    async def _async_login(self):
+        """ This function runs in async mode to perform login.
+        Use with login function. See login function for details.
+        """
+        """Perform login using Chrome with stealth settings."""
+
+        capture_done = asyncio.Event()  # Event to signal when a URL is captured
+
+        def capture_request(request):
+        # Capture the URL if it matches the expected pattern
+            if '127.0.0.1' in request.url:
+                self.redirect_url = request.url
+                capture_done.set()  # Signal that we've captured the desired URL
+        
+        self.playwright = await async_playwright().start()
+        self.browser = await self.playwright.chromium.launch(
+            headless=self.headless
+        )
+        
+        # Create a new browser context
+        # Create a new browser context with the custom user agent
+        context = await self.browser.new_context(
+            user_agent=USER_AGENT,
+            viewport = VIEWPORT
+        )
+
+        # Create a new page in this context
+        self.page = await context.new_page()
+                
+        # Configure stealth options
+        config = StealthConfig()
+        config.navigator_languages = False
+        config.navigator_user_agent = False
+        await stealth_async(self.page, config)
+
+        auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
+        await self.page.goto(auth_url)
+        await asyncio.sleep(random.uniform(1.4, 1.6))
+        await self.page.goto(auth_url)
+        
+        await asyncio.sleep(3)
+        await self.page.screenshot(path="screenshot.png")
+        # Wait for the login ID input to be visible before attempting to fill it
+        await self.page.wait_for_selector('#loginIdInput', timeout=15000)  # 15-second timeout
+        await self.page.wait_for_selector('#passwordInput', timeout=1000)  # 15-second timeout
+        await self.page.wait_for_selector('#btnLogin', timeout=1000)  # 15-second timeout
+        
+        if self.totp_secret is not None:
+            totp = pyotp.TOTP(self.totp_secret)
+            password = self.password + str(totp.now())
+
+        # Fill in the login ID
+        await asyncio.sleep(random.uniform(.5, .8))
+        await self.page.fill('#loginIdInput', self.username)
+        # Fill in the password
+        await asyncio.sleep(random.uniform(1.3, 1.8))
+        await self.page.fill('#passwordInput', password)
+
+        await self.page.screenshot(path="screenshot.png")
+        
+        # Click the login button
+        await asyncio.sleep(random.uniform(1.4, 1.6))
+        await self.page.click('#btnLogin')
+
+        await asyncio.sleep(3)
+        await self.page.screenshot(path="screenshot.png")
+        
+        # Wait for the "Accept Terms" checkbox and check it
+        await self.page.wait_for_selector('#acceptTerms', timeout=8000)  # 8-second timeout for loading
+        await asyncio.sleep(random.uniform(1, 1.5))
+        await self.page.check('#acceptTerms')
+        
+        await asyncio.sleep(3)
+        await self.page.screenshot(path="screenshot.png")
+        
+        # Wait for the "Continue" button and click it
+        await asyncio.sleep(random.uniform(1.8, 2.8))
+        await self.page.wait_for_selector('#submit-btn', timeout=2000)  # 5-second timeout for loading
+        await self.page.click('#submit-btn')
+
+        await asyncio.sleep(3)
+        await self.page.screenshot(path="screenshot.png")
+        
+        await self.page.wait_for_selector('#agree-modal-btn-', timeout=2000)  # 5-second timeout for loading
+        await asyncio.sleep(random.uniform(1.2, 2.8))
+        await self.page.click('#agree-modal-btn-')    
+
+        # Ensure all checkboxes within the "Your current Schwab accounts" form group are checked
+        await self.page.wait_for_selector('.form-group', timeout=5000)  # Wait for the form group to load
+        # Wait before starting interaction
+        await asyncio.sleep(1)
+    
+        # Get all checkboxes in the form group (dynamic, in case there are different checkboxes)
+        checkboxes = await self.page.query_selector_all('.form-group input[type="checkbox"]')
+    
+        # Iterate through all checkboxes and check them
+        await asyncio.sleep(random.uniform(0.4, 0.7))
+        for checkbox in checkboxes:
+            if await checkbox.is_visible():
+                await asyncio.sleep(random.uniform(0.4, 0.7))
+                await checkbox.check()
+
+        await asyncio.sleep(random.uniform(1.8, 2.8))
+        await self.page.wait_for_selector('#submit-btn', timeout=2000)  # 2-second timeout for loading
+        await self.page.click('#submit-btn')
+
+        await asyncio.sleep(random.uniform(1.8, 2.8))
+        await self.page.wait_for_selector('#cancel-btn', timeout=5000)  # 5-second timeout for loading
+                
+        try:
+            # Attach the listener to capture the url
+            self.page.on("request", capture_request)
+            # Click the cancel button
+            await self.page.click('#cancel-btn')
+            await asyncio.wait_for(capture_done.wait(), timeout=10)            
+        except Exception as e:
+            # Handle the ERR_CONNECTION_REFUSED error
+            if "net::ERR_CONNECTION_REFUSED" in str(e):
+                pass # DO NOTHING
+            else:
+                # Re-raise unexpected errors
+                raise
+        
+        print(f"Redirected to: {self.redirect_url}")
+        await self.page.close()
+        await self.browser.close()
+        await self.playwright.stop()
+        
+        return self.redirect_url
+        
     def _update_refresh_token_from_code(self, url_or_code):
         """
         Get new access and refresh tokens using callback url or authorization code.
@@ -277,64 +453,18 @@ class Tokens:
         Get new access and refresh tokens using authorization code.
         """
 
-        # get and open the link that the user will authorize with.
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'
         print(f"[Schwabdev] Open to authenticate: {auth_url}")
+        code = None
         try:
-            webbrowser.open(auth_url)
-        except Exception as e:
-            self._logger.error(e)
-            self._logger.warning("Could not open browser for authorization")
-
-        #parse the callback url
-        url_split = self._callback_url.split("://")[-1].split(":")
-        url_parsed = url_split[0]
-        port_parsed = url_split[-1] # this may or may not have the port
-
-        if port_parsed.isdigit(): # if there is a port then capture the callback url
-
-            # class used to share code outside the http server
-            class SharedCode:
-                def __init__(self):
-                    self.code = ""
-
-            # custom HTTP handler to silence logger and get code
-            class HTTPHandler(http.server.BaseHTTPRequestHandler):
-                shared = None
-
-                def log_message(self, format, *args):
-                    pass  # silence logger
-
-                def do_GET(self):
-                    if self.path.find("code=") != -1:
-                        self.shared.code = f"{self.path[self.path.index('code=') + 5:self.path.index('%40')]}@"
-                    self.send_response(200, "OK")
-                    self.end_headers()
-                    self.wfile.write(b"You may now close this page.")
-
-            shared = SharedCode()
-
-            HTTPHandler.shared = shared
-            httpd = http.server.HTTPServer((url_parsed, int(port_parsed)), HTTPHandler)
-
-            cert_filepath = os.path.expanduser("~/.schwabdev/localhost.crt")
-            key_filepath = os.path.expanduser("~/.schwabdev/localhost.key")
-            if not (os.path.isfile(cert_filepath) and os.path.isfile(key_filepath)): #this does not check if the cert and key are valid
-                self._generate_certificate(common_name=url_parsed, cert_filepath=cert_filepath, key_filepath=key_filepath)
-
-            ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            ctx.load_cert_chain(certfile=cert_filepath, keyfile=key_filepath)
-            #ctx.load_default_certs()
-
-            httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
-            while len(shared.code) < 1: # wait for code
-                httpd.handle_request()
-
-            httpd.server_close()
-            code = shared.code
-        else: # if there is no port then the user must copy/paste the url
-            response_url = input("[Schwabdev] After authorizing, paste the address bar url here: ")
+            response_url=asyncio.run(self._async_login())
+            print(response_url)
             code = f"{response_url[response_url.index('code=') + 5:response_url.index('%40')]}@"
+        except Exception as e:
+            print('Error:')
+            print(e)
+            self._logger.error(e)
+            self._logger.warning("Failed authentication")
 
         if code is not None:
             self._update_refresh_token_from_code(code)
