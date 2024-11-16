@@ -14,7 +14,7 @@ from .tokens import Tokens
 
 class Client:
 
-    def __init__(self, app_key, app_secret, callback_url="https://127.0.0.1", tokens_file="tokens.json", timeout=5, update_tokens_auto=True):
+    def __init__(self, app_key, app_secret, username, password, totp_secret, headless=True, callback_url="https://127.0.0.1", tokens_file="tokens.json", timeout=5, update_tokens_auto=True):
         """
         Initialize a client to access the Schwab API.
         :param app_key: app key credentials
@@ -36,7 +36,7 @@ class Client:
 
         self.version = "Schwabdev 2.4.4"                        # version of the client
         self.timeout = timeout                                  # timeout to use in requests
-        self.tokens = Tokens(self, app_key, app_secret, callback_url, tokens_file, update_tokens_auto)
+        self.tokens = Tokens(self, app_key, app_secret, username, password, totp_secret, callback_url, headless, tokens_file, update_tokens_auto)
         self.stream = Stream(self)                              # init the streaming object
         self._logger = logging.getLogger("Schwabdev.Client")    # init the logger
 
