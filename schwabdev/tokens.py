@@ -18,6 +18,7 @@ from playwright.async_api import async_playwright, TimeoutError
 from playwright_stealth import stealth_async
 from playwright_stealth.stealth import StealthConfig
 
+
 # Define the user agent template for Chrome with placeholders
 USER_AGENT_TEMPLATE = "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.{build}.{patch} Safari/537.36"
 
@@ -293,6 +294,31 @@ class Tokens:
 
 
 
+    def _update_refresh_token_from_code(self, url_or_code):
+        """
+        Get new access and refresh tokens using callback url or authorization code.
+        :param url_or_code: callback url (full url) or authorization code (the code=... in url)
+        :type url_or_code: str
+        """
+        if url_or_code.startswith("https://"):
+            code = f"{url_or_code[url_or_code.index('code=') + 5:url_or_code.index('%40')]}@"
+            # session = responseURL[responseURL.index("session=")+8:]
+        else:
+            code = url_or_code
+        # get new access and refresh tokens
+        now = datetime.datetime.now(datetime.timezone.utc)
+        response = self._post_oauth_token('authorization_code', code)
+        if response.ok:
+            # update token file and variables
+            self._write_tokens(now, now, response.json())
+            self._logger.info("Refresh and Access tokens updated")
+        else:
+            self._logger.error(response.text)
+            self._logger.error("Could not get new refresh and access tokens, check these:\n"
+                               "1. App status is \"Ready For Use\".\n"
+                               "2. App key and app secret are valid.\n"
+                               "3. You pasted the whole url within 30 seconds. (it has a quick expiration)")
+
     async def _async_login(self):
         """ This function runs in async mode to perform login.
         Use with login function. See login function for details.
@@ -422,37 +448,13 @@ class Tokens:
         await self.playwright.stop()
         
         return self.redirect_url
-        
-    def _update_refresh_token_from_code(self, url_or_code):
-        """
-        Get new access and refresh tokens using callback url or authorization code.
-        :param url_or_code: callback url (full url) or authorization code (the code=... in url)
-        :type url_or_code: str
-        """
-        if url_or_code.startswith("https://"):
-            code = f"{url_or_code[url_or_code.index('code=') + 5:url_or_code.index('%40')]}@"
-            # session = responseURL[responseURL.index("session=")+8:]
-        else:
-            code = url_or_code
-        # get new access and refresh tokens
-        now = datetime.datetime.now(datetime.timezone.utc)
-        response = self._post_oauth_token('authorization_code', code)
-        if response.ok:
-            # update token file and variables
-            self._write_tokens(now, now, response.json())
-            self._logger.info("Refresh and Access tokens updated")
-        else:
-            self._logger.error(response.text)
-            self._logger.error("Could not get new refresh and access tokens, check these:\n"
-                               "1. App status is \"Ready For Use\".\n"
-                               "2. App key and app secret are valid.\n"
-                               "3. You pasted the whole url within 30 seconds. (it has a quick expiration)")
-
+    
     def update_refresh_token(self):
         """
         Get new access and refresh tokens using authorization code.
         """
 
+        # get and open the link that the user will authorize with.
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'
         print(f"[Schwabdev] Open to authenticate: {auth_url}")
         code = None
@@ -464,7 +466,7 @@ class Tokens:
             print('Error:')
             print(e)
             self._logger.error(e)
-            self._logger.warning("Failed authentication")
+            self._logger.warning("Could not open browser for authorization")
 
         if code is not None:
             self._update_refresh_token_from_code(code)
