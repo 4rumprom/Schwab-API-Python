@@ -22,6 +22,9 @@ setup(
         'requests',
         'websockets',
         'cryptography',
+        'playwright',
+        'playwright-stealth',
+        'pyotp',
     ],
     keywords=['python', 'schwab', 'api', 'client', 'finance', 'trading', 'stocks', 'equities', 'options', 'forex', 'futures'],
     classifiers=[
