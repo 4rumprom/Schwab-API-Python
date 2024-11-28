@@ -339,11 +339,14 @@ class Tokens:
         self.browser = await self.playwright.chromium.launch(
             headless=self.headless
         )
+
+        prox = proxies_https[random.randint(0,len(proxies_https)-1)]
+        print("Using: " + prox)
         
         # Create a new browser context
         # Create a new browser context with the custom user agent
         context = await self.browser.new_context(
-            proxy={"server": proxies_https[random.randint(0,len(proxies_https)-1)]},
+            proxy={"server": prox},
             user_agent=USER_AGENT,
             viewport = VIEWPORT
         )
