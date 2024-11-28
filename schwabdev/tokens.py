@@ -358,7 +358,9 @@ class Tokens:
         await self.page.goto(auth_url)
         await asyncio.sleep(random.uniform(3, 4.5))
         await self.page.goto(auth_url, wait_until="load")
-        
+
+        await asyncio.sleep(3)
+        await self.page.screenshot(path="screenshot.png")
         # Wait for the login ID input to be visible before attempting to fill it
         await self.page.wait_for_selector('#loginIdInput', timeout=15000)  # 15-second timeout
         await self.page.wait_for_selector('#passwordInput', timeout=1000)  # 15-second timeout
