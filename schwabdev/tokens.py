@@ -356,11 +356,9 @@ class Tokens:
 
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
         await self.page.goto(auth_url)
-        await asyncio.sleep(random.uniform(1.4, 1.6))
-        await self.page.goto(auth_url)
+        await asyncio.sleep(random.uniform(3, 4.5))
+        await self.page.goto(auth_url, wait_until="load")
         
-        await asyncio.sleep(3)
-        await self.page.screenshot(path="screenshot.png")
         # Wait for the login ID input to be visible before attempting to fill it
         await self.page.wait_for_selector('#loginIdInput', timeout=15000)  # 15-second timeout
         await self.page.wait_for_selector('#passwordInput', timeout=1000)  # 15-second timeout
@@ -376,15 +374,12 @@ class Tokens:
         # Fill in the password
         await asyncio.sleep(random.uniform(1.3, 1.8))
         await self.page.fill('#passwordInput', password)
-
-        await self.page.screenshot(path="screenshot.png")
         
         # Click the login button
         await asyncio.sleep(random.uniform(1.4, 1.6))
         await self.page.click('#btnLogin')
 
-        await asyncio.sleep(3)
-        await self.page.screenshot(path="screenshot.png")
+        await asyncio.sleep(random.uniform(2, 3.8))
         
         # Wait for the "Accept Terms" checkbox and check it
         await self.page.wait_for_selector('#acceptTerms', timeout=8000)  # 8-second timeout for loading
