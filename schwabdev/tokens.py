@@ -350,20 +350,24 @@ class Tokens:
             user_agent=USER_AGENT,
             viewport = VIEWPORT
         )
-
+        
         # Create a new page in this context
         self.page = await context.new_page()
-                
+        print("Created a new page in new browser context")
+        
         # Configure stealth options
         config = StealthConfig()
         config.navigator_languages = False
         config.navigator_user_agent = False
         await stealth_async(self.page, config)
-
+        print("Configured stealth options")
+        
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
         await self.page.goto(auth_url)
+        print("Opened URL")
         await asyncio.sleep(random.uniform(1.4, 1.6))
         await self.page.goto(auth_url)
+        print("Opened URL again")
         
         await asyncio.sleep(3)
         await self.page.screenshot(path="screenshot.png")
@@ -371,6 +375,7 @@ class Tokens:
         await self.page.wait_for_selector('#loginIdInput', timeout=15000)  # 15-second timeout
         await self.page.wait_for_selector('#passwordInput', timeout=1000)  # 15-second timeout
         await self.page.wait_for_selector('#btnLogin', timeout=1000)  # 15-second timeout
+        print("Found selectors")       
         
         if self.totp_secret is not None:
             totp = pyotp.TOTP(self.totp_secret)
