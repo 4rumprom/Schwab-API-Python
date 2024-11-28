@@ -18,6 +18,8 @@ from playwright.async_api import async_playwright, TimeoutError
 from playwright_stealth import stealth_async
 from playwright_stealth.stealth import StealthConfig
 
+# List of proxies
+proxies_https = ["https://45.22.209.157:8888","http://72.10.160.173:29439","https://194.246.34.224:8080","https://47.90.205.231:33333","https://69.197.135.43:18080","https://18.223.25.15:80","https://35.185.196.38:3128","https://47.88.31.196:8080","https://198.49.68.80:80","https://154.94.5.241:7001","https://160.86.242.23:8080","https://135.148.100.78:48149","https://72.10.160.94:8355","https://156.250.119.165:7001","https://67.43.227.228:23737","https://72.10.160.174:13093","https://72.10.160.171:10095","https://67.43.227.227:11023","https://67.43.227.230:4961","https://181.188.27.162:8080","https://43.153.207.93:3128","https://148.72.165.7:30127","https://47.251.70.179:80","https://15.204.161.192:18080"]
 
 # Define the user agent template for Chrome with placeholders
 USER_AGENT_TEMPLATE = "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.{build}.{patch} Safari/537.36"
@@ -341,6 +343,7 @@ class Tokens:
         # Create a new browser context
         # Create a new browser context with the custom user agent
         context = await self.browser.new_context(
+            proxy={"server": proxies_https[random.randint(0,len(proxies_https)-1)]},
             user_agent=USER_AGENT,
             viewport = VIEWPORT
         )
@@ -356,9 +359,9 @@ class Tokens:
 
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
         await self.page.goto(auth_url)
-        await asyncio.sleep(random.uniform(3, 4.5))
-        await self.page.goto(auth_url, wait_until="load")
-
+        await asyncio.sleep(random.uniform(1.4, 1.6))
+        await self.page.goto(auth_url)
+        
         await asyncio.sleep(3)
         await self.page.screenshot(path="screenshot.png")
         # Wait for the login ID input to be visible before attempting to fill it
@@ -376,12 +379,15 @@ class Tokens:
         # Fill in the password
         await asyncio.sleep(random.uniform(1.3, 1.8))
         await self.page.fill('#passwordInput', password)
+
+        await self.page.screenshot(path="screenshot.png")
         
         # Click the login button
         await asyncio.sleep(random.uniform(1.4, 1.6))
         await self.page.click('#btnLogin')
 
-        await asyncio.sleep(random.uniform(2, 3.8))
+        await asyncio.sleep(3)
+        await self.page.screenshot(path="screenshot.png")
         
         # Wait for the "Accept Terms" checkbox and check it
         await self.page.wait_for_selector('#acceptTerms', timeout=8000)  # 8-second timeout for loading
