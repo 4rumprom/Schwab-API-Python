@@ -18,8 +18,6 @@ from playwright.async_api import async_playwright, TimeoutError
 from playwright_stealth import stealth_async
 from playwright_stealth.stealth import StealthConfig
 
-# List of proxies
-proxies_https = ["https://45.22.209.157:8888","http://72.10.160.173:29439","https://194.246.34.224:8080","https://47.90.205.231:33333","https://69.197.135.43:18080","https://18.223.25.15:80","https://35.185.196.38:3128","https://47.88.31.196:8080","https://198.49.68.80:80","https://154.94.5.241:7001","https://160.86.242.23:8080","https://135.148.100.78:48149","https://72.10.160.94:8355","https://156.250.119.165:7001","https://67.43.227.228:23737","https://72.10.160.174:13093","https://72.10.160.171:10095","https://67.43.227.227:11023","https://67.43.227.230:4961","https://181.188.27.162:8080","https://43.153.207.93:3128","https://148.72.165.7:30127","https://47.251.70.179:80","https://15.204.161.192:18080"]
 
 # Define the user agent template for Chrome with placeholders
 USER_AGENT_TEMPLATE = "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.{build}.{patch} Safari/537.36"
@@ -339,35 +337,27 @@ class Tokens:
         self.browser = await self.playwright.chromium.launch(
             headless=self.headless
         )
-
-        prox = proxies_https[random.randint(0,len(proxies_https)-1)]
-        print("Using: " + prox)
         
         # Create a new browser context
         # Create a new browser context with the custom user agent
         context = await self.browser.new_context(
-            proxy={"server": prox},
             user_agent=USER_AGENT,
             viewport = VIEWPORT
         )
-        
+
         # Create a new page in this context
         self.page = await context.new_page()
-        print("Created a new page in new browser context")
-        
+                
         # Configure stealth options
         config = StealthConfig()
         config.navigator_languages = False
         config.navigator_user_agent = False
         await stealth_async(self.page, config)
-        print("Configured stealth options")
-        
+
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
         await self.page.goto(auth_url)
-        print("Opened URL")
         await asyncio.sleep(random.uniform(1.4, 1.6))
         await self.page.goto(auth_url)
-        print("Opened URL again")
         
         await asyncio.sleep(3)
         await self.page.screenshot(path="screenshot.png")
@@ -375,7 +365,6 @@ class Tokens:
         await self.page.wait_for_selector('#loginIdInput', timeout=15000)  # 15-second timeout
         await self.page.wait_for_selector('#passwordInput', timeout=1000)  # 15-second timeout
         await self.page.wait_for_selector('#btnLogin', timeout=1000)  # 15-second timeout
-        print("Found selectors")       
         
         if self.totp_secret is not None:
             totp = pyotp.TOTP(self.totp_secret)
