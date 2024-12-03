@@ -337,6 +337,16 @@ class Tokens:
             with open("headers_log.json", "a") as f:
                 json.dump({"url": request.url, "headers": request.headers}, f, indent=4)
                 f.write(",\n")  # Add a comma for separation in case of multiple headers
+
+        # Intercept and modify headers before sending the request
+        def modify_headers(request):
+            headers = request.headers.copy()  # Make a copy of the current headers
+            # Remove the specific headers
+            headers.pop("sec-ch-ua", None)
+            headers.pop("sec-ch-ua-mobile", None)
+            headers.pop("sec-ch-ua-platform", None)
+            # Continue the request with the modified headers
+            request.continue_(headers=headers)
         
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
@@ -349,6 +359,9 @@ class Tokens:
             user_agent=USER_AGENT,
             viewport = VIEWPORT
         )
+
+        # Set up the request interceptor to modify headers
+        context.on("route", modify_headers)
 
         # Create a new page in this context
         self.page = await context.new_page()
