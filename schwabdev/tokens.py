@@ -332,6 +332,11 @@ class Tokens:
             if '127.0.0.1' in request.url:
                 self.redirect_url = request.url
                 capture_done.set()  # Signal that we've captured the desired URL
+
+        async def log_request_headers(request):     
+            with open("headers_log.json", "a") as f:
+                json.dump({"url": request.url, "headers": request.headers}, f, indent=4)
+                f.write(",\n")  # Add a comma for separation in case of multiple headers
         
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
@@ -354,6 +359,9 @@ class Tokens:
         config.navigator_user_agent = False
         config.navigator_vendor = False
         await stealth_async(self.page, config)
+
+        # Listen for all outgoing requests
+        self.page.on("request", log_request_headers)
 
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
         await self.page.goto(auth_url)
