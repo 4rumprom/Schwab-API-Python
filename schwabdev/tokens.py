@@ -339,14 +339,14 @@ class Tokens:
                 f.write(",\n")  # Add a comma for separation in case of multiple headers
 
         # Intercept and modify headers before sending the request
-        def modify_headers(request):
+        async def modify_headers(route, request):
             headers = request.headers.copy()  # Make a copy of the current headers
             # Remove the specific headers
             headers.pop("sec-ch-ua", None)
             headers.pop("sec-ch-ua-mobile", None)
             headers.pop("sec-ch-ua-platform", None)
             # Continue the request with the modified headers
-            request.continue_(headers=headers)
+            await route.continue_(headers=headers)
         
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
@@ -360,9 +360,6 @@ class Tokens:
             viewport = VIEWPORT
         )
 
-        # Set up the request interceptor to modify headers
-        context.on("route", modify_headers)
-
         # Create a new page in this context
         self.page = await context.new_page()
                 
@@ -375,6 +372,9 @@ class Tokens:
 
         # Listen for all outgoing requests
         self.page.on("request", log_request_headers)
+
+        # Set up the request interceptor to modify headers
+        await self.page.route("**/*", modify_headers)
 
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
         await self.page.goto(auth_url)
