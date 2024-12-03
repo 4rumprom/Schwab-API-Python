@@ -352,6 +352,7 @@ class Tokens:
         config = StealthConfig()
         config.navigator_languages = False
         config.navigator_user_agent = False
+        config.navigator_vendor = False
         await stealth_async(self.page, config)
 
         auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
