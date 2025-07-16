@@ -460,12 +460,12 @@ class Tokens:
                     raise
             
             print(f"Redirected to: {self.redirect_url}")
+            finally:
+                # Clean shutdown: remove routes and close browser safely
+                await self.page.unroute_all(behavior="ignoreErrors")
+                await self.browser.close()
         
-        # Now, wrap the rest of your Playwright operations inside an 'async with' block
-        # using the context manager you just created.
-        async with self.playwright_context_manager as p: # Use 'p' as the playwright instance
-            self.playwright = p # Assign 'p' to self.playwright if you need to access it later self.playwright.stop()
-        
+                
         return self.redirect_url
     
     def update_refresh_token(self):
