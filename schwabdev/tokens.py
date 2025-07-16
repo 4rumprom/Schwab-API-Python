@@ -336,15 +336,16 @@ class Tokens:
                 json.dump({"url": request.url, "headers": request.headers}, f, indent=4)
                 f.write(",\n")  # Add a comma for separation in case of multiple headers
 
-        # Intercept and modify headers before sending the request
         async def modify_headers(route, request):
-            headers = request.headers.copy()  # Make a copy of the current headers
-            # Remove the specific headers
-            headers.pop("sec-ch-ua", None)
-            headers.pop("sec-ch-ua-mobile", None)
-            headers.pop("sec-ch-ua-platform", None)
-            # Continue the request with the modified headers
-            await route.continue_(headers=headers)
+            try:
+                headers = request.headers.copy()
+                headers.pop("sec-ch-ua", None)
+                headers.pop("sec-ch-ua-mobile", None)
+                headers.pop("sec-ch-ua-platform", None)
+                await route.continue_(headers=headers)
+            except Exception as e:
+                # Route may fail if the page closed before it could continue
+                print(f"[Route error ignored] {e}")
 
         stealth_args = {
             **ALL_EVASIONS_DISABLED_KWARGS,
@@ -460,12 +461,9 @@ class Tokens:
                     raise
             
             print(f"Redirected to: {self.redirect_url}")
-            finally:
-                # Clean shutdown: remove routes and close browser safely
-                await self.page.unroute_all(behavior="ignoreErrors")
-                await self.browser.close()
+            await self.page.unroute_all(behavior="ignoreErrors")
+            await self.browser.close()
         
-                
         return self.redirect_url
     
     def update_refresh_token(self):
