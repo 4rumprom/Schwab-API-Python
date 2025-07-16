@@ -345,9 +345,12 @@ class Tokens:
             headers.pop("sec-ch-ua-platform", None)
             # Continue the request with the modified headers
             await route.continue_(headers=headers)
-        
-        self.playwright_context_manager = Stealth(**ALL_EVASIONS_DISABLED_KWARGS,
-                      navigator_webdriver=True).use_async(async_playwright())
+
+        stealth_args = {
+            **ALL_EVASIONS_DISABLED_KWARGS,
+            "navigator_webdriver": True  # override the default (which is False)
+        }
+        self.playwright_context_manager = Stealth(**stealth_args).use_async(async_playwright())
         
         async with self.playwright_context_manager as p: # Use 'p' as the playwright instance
             self.playwright = p
