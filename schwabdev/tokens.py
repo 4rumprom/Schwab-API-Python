@@ -15,7 +15,6 @@ import requests
 import datetime
 import threading
 from playwright.async_api import async_playwright, TimeoutError
-from playwright_stealth.stealth import StealthConfig
 from playwright_stealth import Stealth
 
 
@@ -364,11 +363,12 @@ class Tokens:
         self.page = await context.new_page()
                 
         # Configure stealth options
-        config = StealthConfig()
-        config.navigator_languages = False
-        config.navigator_user_agent = False
-        config.navigator_vendor = False
-        self.playwright = await Stealth(config=custom_config).use_async(async_playwright()).start()
+        stealth_options = {
+            "navigator.languages": False,
+            "navigator.user_agent": False,
+            "navigator.vendor": False
+        }
+        self.playwright = await Stealth(options=stealth_options).use_async(async_playwright()).start()
 
         # Listen for all outgoing requests
         self.page.on("request", log_request_headers)
