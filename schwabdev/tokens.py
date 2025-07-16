@@ -346,21 +346,6 @@ class Tokens:
             headers.pop("sec-ch-ua-platform", None)
             # Continue the request with the modified headers
             await route.continue_(headers=headers)
-        
-        self.playwright = await Stealth().use_async(async_playwright()).start()
-        self.browser = await self.playwright.chromium.launch(
-            headless=self.headless
-        )
-        
-        # Create a new browser context
-        # Create a new browser context with the custom user agent
-        context = await self.browser.new_context(
-            user_agent=USER_AGENT,
-            viewport = VIEWPORT
-        )
-
-        # Create a new page in this context
-        self.page = await context.new_page()
                 
         # Configure stealth options
         stealth_options = {
@@ -368,106 +353,123 @@ class Tokens:
             "navigator.user_agent": False,
             "navigator.vendor": False
         }
-        self.playwright = await Stealth(options=stealth_options).use_async(async_playwright()).start()
+        self.playwright_context_manager = Stealth(options=stealth_options).use_async(async_playwright())
 
-        # Listen for all outgoing requests
-        self.page.on("request", log_request_headers)
+        # Now, wrap the rest of your Playwright operations inside an 'async with' block
+        # using the context manager you just created.
+        async with self.playwright_context_manager as p: # Use 'p' as the playwright instance
+            self.playwright = p
+            self.browser = await self.playwright.chromium.launch(
+                headless=self.headless
+            )
+            
+            context = await self.browser.new_context(
+                user_agent=USER_AGENT,
+                viewport = VIEWPORT
+            )
 
-        # Set up the request interceptor to modify headers
-        await self.page.route("**/*", modify_headers)
+            self.page = await context.new_page()
+            
+            # Listen for all outgoing requests
+            self.page.on("request", log_request_headers)
 
-        auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
-        await self.page.goto(auth_url)
-        await asyncio.sleep(random.uniform(1.4, 1.6))
-        await self.page.goto(auth_url)
+            # Set up the request interceptor to modify headers
+            await self.page.route("**/*", modify_headers)
+
+            auth_url = f'https://api.schwabapi.com/v1/oauth/authorize?client_id={self._app_key}&redirect_uri={self._callback_url}'        
+            await self.page.goto(auth_url)
+            await asyncio.sleep(random.uniform(1.4, 1.6))
+            await self.page.goto(auth_url)
         
-        await asyncio.sleep(3)
-        await self.page.screenshot(path="screenshot.png")
-        # Wait for the login ID input to be visible before attempting to fill it
-        await self.page.wait_for_selector('#loginIdInput', timeout=15000)  # 15-second timeout
-        await self.page.wait_for_selector('#passwordInput', timeout=1000)  # 15-second timeout
-        await self.page.wait_for_selector('#btnLogin', timeout=1000)  # 15-second timeout
+            await asyncio.sleep(3)
+            await self.page.screenshot(path="screenshot.png")
+            # Wait for the login ID input to be visible before attempting to fill it
+            await self.page.wait_for_selector('#loginIdInput', timeout=15000)  # 15-second timeout
+            await self.page.wait_for_selector('#passwordInput', timeout=1000)  # 15-second timeout
+            await self.page.wait_for_selector('#btnLogin', timeout=1000)  # 15-second timeout
         
-        if self.totp_secret is not None:
-            totp = pyotp.TOTP(self.totp_secret)
-            password = self.password + str(totp.now())
+            if self.totp_secret is not None:
+                totp = pyotp.TOTP(self.totp_secret)
+                password = self.password + str(totp.now())
 
-        # Fill in the login ID
-        await asyncio.sleep(random.uniform(.5, .8))
-        await self.page.fill('#loginIdInput', self.username)
-        # Fill in the password
-        await asyncio.sleep(random.uniform(1.3, 1.8))
-        await self.page.fill('#passwordInput', password)
+            # Fill in the login ID
+            await asyncio.sleep(random.uniform(.5, .8))
+            await self.page.fill('#loginIdInput', self.username)
+            # Fill in the password
+            await asyncio.sleep(random.uniform(1.3, 1.8))
+            await self.page.fill('#passwordInput', password)
 
-        await self.page.screenshot(path="screenshot.png")
+            await self.page.screenshot(path="screenshot.png")
         
-        # Click the login button
-        await asyncio.sleep(random.uniform(1.4, 1.6))
-        await self.page.click('#btnLogin')
+            # Click the login button
+            await asyncio.sleep(random.uniform(1.4, 1.6))
+            await self.page.click('#btnLogin')
 
-        await asyncio.sleep(3)
-        await self.page.screenshot(path="screenshot.png")
+            await asyncio.sleep(3)
+            await self.page.screenshot(path="screenshot.png")
         
-        # Wait for the "Accept Terms" checkbox and check it
-        await self.page.wait_for_selector('#acceptTerms', timeout=8000)  # 8-second timeout for loading
-        await asyncio.sleep(random.uniform(1, 1.5))
-        await self.page.check('#acceptTerms')
+            # Wait for the "Accept Terms" checkbox and check it
+            await self.page.wait_for_selector('#acceptTerms', timeout=8000)  # 8-second timeout for loading
+            await asyncio.sleep(random.uniform(1, 1.5))
+            await self.page.check('#acceptTerms')
         
-        await asyncio.sleep(3)
-        await self.page.screenshot(path="screenshot.png")
+            await asyncio.sleep(3)
+            await self.page.screenshot(path="screenshot.png")
         
-        # Wait for the "Continue" button and click it
-        await asyncio.sleep(random.uniform(1.8, 2.8))
-        await self.page.wait_for_selector('#submit-btn', timeout=2000)  # 5-second timeout for loading
-        await self.page.click('#submit-btn')
+            # Wait for the "Continue" button and click it
+            await asyncio.sleep(random.uniform(1.8, 2.8))
+            await self.page.wait_for_selector('#submit-btn', timeout=2000)  # 5-second timeout for loading
+            await self.page.click('#submit-btn')
 
-        await asyncio.sleep(3)
-        await self.page.screenshot(path="screenshot.png")
+            await asyncio.sleep(3)
+            await self.page.screenshot(path="screenshot.png")
         
-        await self.page.wait_for_selector('#agree-modal-btn-', timeout=2000)  # 5-second timeout for loading
-        await asyncio.sleep(random.uniform(1.2, 2.8))
-        await self.page.click('#agree-modal-btn-')    
+            await self.page.wait_for_selector('#agree-modal-btn-', timeout=2000)  # 5-second timeout for loading
+            await asyncio.sleep(random.uniform(1.2, 2.8))
+            await self.page.click('#agree-modal-btn-')    
 
-        # Ensure all checkboxes within the "Your current Schwab accounts" form group are checked
-        await self.page.wait_for_selector('.form-group', timeout=5000)  # Wait for the form group to load
-        # Wait before starting interaction
-        await asyncio.sleep(1)
+            # Ensure all checkboxes within the "Your current Schwab accounts" form group are checked
+            await self.page.wait_for_selector('.form-group', timeout=5000)  # Wait for the form group to load
+            # Wait before starting interaction
+            await asyncio.sleep(1)
     
-        # Get all checkboxes in the form group (dynamic, in case there are different checkboxes)
-        checkboxes = await self.page.query_selector_all('.form-group input[type="checkbox"]')
+            # Get all checkboxes in the form group (dynamic, in case there are different checkboxes)
+            checkboxes = await self.page.query_selector_all('.form-group input[type="checkbox"]')
     
-        # Iterate through all checkboxes and check them
-        await asyncio.sleep(random.uniform(0.4, 0.7))
-        for checkbox in checkboxes:
-            if await checkbox.is_visible():
-                await asyncio.sleep(random.uniform(0.4, 0.7))
-                await checkbox.check()
+            # Iterate through all checkboxes and check them
+            await asyncio.sleep(random.uniform(0.4, 0.7))
+            for checkbox in checkboxes:
+                if await checkbox.is_visible():
+                    await asyncio.sleep(random.uniform(0.4, 0.7))
+                    await checkbox.check()
 
-        await asyncio.sleep(random.uniform(1.8, 2.8))
-        await self.page.wait_for_selector('#submit-btn', timeout=2000)  # 2-second timeout for loading
-        await self.page.click('#submit-btn')
+            await asyncio.sleep(random.uniform(1.8, 2.8))
+            await self.page.wait_for_selector('#submit-btn', timeout=2000)  # 2-second timeout for loading
+            await self.page.click('#submit-btn')
 
-        await asyncio.sleep(random.uniform(1.8, 2.8))
-        await self.page.wait_for_selector('#cancel-btn', timeout=5000)  # 5-second timeout for loading
+            await asyncio.sleep(random.uniform(1.8, 2.8))
+            await self.page.wait_for_selector('#cancel-btn', timeout=5000)  # 5-second timeout for loading
                 
-        try:
-            # Attach the listener to capture the url
-            self.page.on("request", capture_request)
-            # Click the cancel button
-            await self.page.click('#cancel-btn')
-            await asyncio.wait_for(capture_done.wait(), timeout=10)            
-        except Exception as e:
-            # Handle the ERR_CONNECTION_REFUSED error
-            if "net::ERR_CONNECTION_REFUSED" in str(e):
-                pass # DO NOTHING
-            else:
-                # Re-raise unexpected errors
-                raise
+            try:
+                # Attach the listener to capture the url
+                self.page.on("request", capture_request)
+                # Click the cancel button
+                await self.page.click('#cancel-btn')
+                await asyncio.wait_for(capture_done.wait(), timeout=10)            
+            except Exception as e:
+                # Handle the ERR_CONNECTION_REFUSED error
+                if "net::ERR_CONNECTION_REFUSED" in str(e):
+                    pass # DO NOTHING
+                else:
+                    # Re-raise unexpected errors
+                    raise
+            
+            print(f"Redirected to: {self.redirect_url}")
         
-        print(f"Redirected to: {self.redirect_url}")
-        await self.page.close()
-        await self.browser.close()
-        await self.playwright.stop()
+        # Now, wrap the rest of your Playwright operations inside an 'async with' block
+        # using the context manager you just created.
+        async with self.playwright_context_manager as p: # Use 'p' as the playwright instance
+            self.playwright = p # Assign 'p' to self.playwright if you need to access it later self.playwright.stop()
         
         return self.redirect_url
     
