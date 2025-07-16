@@ -15,8 +15,7 @@ import requests
 import datetime
 import threading
 from playwright.async_api import async_playwright, TimeoutError
-from playwright_stealth import Stealth
-
+from playwright_stealth import Stealth, ALL_EVASIONS_DISABLED_KWARGS
 
 # Define the user agent template for Chrome with placeholders
 USER_AGENT_TEMPLATE = "Mozilla/5.0 ({os}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.{build}.{patch} Safari/537.36"
@@ -346,17 +345,10 @@ class Tokens:
             headers.pop("sec-ch-ua-platform", None)
             # Continue the request with the modified headers
             await route.continue_(headers=headers)
-                
-        # Configure stealth options
-        stealth_options = {
-            "navigator.languages": False,
-            "navigator.user_agent": False,
-            "navigator.vendor": False
-        }
-        self.playwright_context_manager = Stealth(options=stealth_options).use_async(async_playwright())
-
-        # Now, wrap the rest of your Playwright operations inside an 'async with' block
-        # using the context manager you just created.
+        
+        self.playwright_context_manager = Stealth(**ALL_EVASIONS_DISABLED_KWARGS,
+                      navigator_webdriver=True).use_async(async_playwright())
+        
         async with self.playwright_context_manager as p: # Use 'p' as the playwright instance
             self.playwright = p
             self.browser = await self.playwright.chromium.launch(
